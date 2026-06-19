@@ -1,8 +1,7 @@
 # Agentic Analytics Copilot Tracker
 
-## Current Sprint
 
-Sprint 1: Backend Foundation
+# Sprint 1: Backend Foundation
 
 ## Sprint Log
 
@@ -56,6 +55,34 @@ Response models define outgoing API response shape.
 - backend/.env:
 - backend/pyproject.toml:
 
-## Business / Domain Notes
+Sprint 2 Understanding
 
-## Next Actions
+1. psycopg
+What it is:
+Why we need it:
+
+2. Database connection string
+What it is:
+Example:
+What can go wrong:
+
+3. Connection vs cursor
+Connection:
+Cursor:
+
+4. fetchall
+What it does:
+When it can be risky:
+
+5. postgres_client.py
+Why DB code belongs here:
+
+6. routes.py
+What routes.py should do:
+What routes.py should not do:
+
+7. Resource handling
+What happens if connections are not closed:
+
+8. My Sprint 2 mental model
+/ask request → auth → route → PostgresClient → query → rows → AskResponse
