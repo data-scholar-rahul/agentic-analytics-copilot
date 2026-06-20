@@ -6,7 +6,8 @@ from app.db.postgres_client import PostgresClient
 from app.db.schema_setup import setup_database
 from app.schemas.ask import AskRequest
 from app.schemas.responses import AskResponse
-
+from app.schemas.semantic import SemanticContextResponse
+from app.services.semantic_service import SemanticService
 
 router = APIRouter()
 
@@ -27,6 +28,12 @@ def setup_database_endpoint(
         "status": "ok",
         "message": "Database schemas and foundational tables created.",
     }
+
+@router.get("/admin/semantic-context", response_model= SemanticContextResponse)
+def get_semantic_context_endpoint(current_user: str = Depends(verify_basic_auth), settings: Settings = Depends(get_settings)) -> SemanticContextResponse:
+    db = PostgresClient(database_url=settings.database_url)
+    semantic_service = SemanticService(db=db)
+    return semantic_service.get_semantic_context()
 
 @router.post("/ask", response_model=AskResponse)
 def ask_question(
