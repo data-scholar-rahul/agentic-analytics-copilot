@@ -8,6 +8,8 @@ from app.schemas.ask import AskRequest
 from app.schemas.responses import AskResponse
 from app.schemas.semantic import SemanticContextResponse
 from app.services.semantic_service import SemanticService
+from app.schemas.sql_validation import SqlValidationRequest, SqlValidationResponse
+from app.services.sql_validator import SqlValidator
 
 router = APIRouter()
 
@@ -67,3 +69,11 @@ def ask_question(
             "After that we will load business data.",
         ],
     )
+
+@router.post("/admin/validate-sql", response_model=SqlValidationResponse)
+def validate_sql_endpoint(
+    request: SqlValidationRequest,
+    current_user: str = Depends(verify_basic_auth),
+) -> SqlValidationResponse:
+    validator = SqlValidator()
+    return validator.validate(request.sql)
