@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from app.api.auth import verify_basic_auth
 from app.core.config import Settings, get_settings
 from app.db.postgres_client import PostgresClient
+from app.db.schema_setup import setup_database
 from app.schemas.ask import AskRequest
 from app.schemas.responses import AskResponse
 
@@ -14,6 +15,18 @@ router = APIRouter()
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
+@router.post("/admin/setup-database")
+def setup_database_endpoint(
+    current_user: str = Depends(verify_basic_auth),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, str]:
+    db = PostgresClient(database_url=settings.database_url)
+    setup_database(db)
+
+    return {
+        "status": "ok",
+        "message": "Database schemas and foundational tables created.",
+    }
 
 @router.post("/ask", response_model=AskResponse)
 def ask_question(
