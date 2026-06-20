@@ -10,6 +10,9 @@ from app.schemas.semantic import SemanticContextResponse
 from app.services.semantic_service import SemanticService
 from app.schemas.sql_validation import SqlValidationRequest, SqlValidationResponse
 from app.services.sql_validator import SqlValidator
+from app.schemas.query_execution import QueryExecutionRequest, QueryExecutionResponse
+from app.services.query_execution_service import QueryExecutionService
+from app.services.intent_router import IntentRouter
 
 router = APIRouter()
 
@@ -43,30 +46,65 @@ def ask_question(
     current_user: str = Depends(verify_basic_auth),
     settings: Settings = Depends(get_settings),
 ) -> AskResponse:
+    intent_router = IntentRouter()
+    matched_intent = intent_router.match(request.question)
+
+    if matched_intent is None:
+        return AskResponse(
+            answer=(
+                "I can answer only a few supported analytics questions right now. "
+                "Try: 'Show order count by status', 'Show revenue by month', "
+                "or 'Show top product categories by revenue'."
+            ),
+            assumptions=[
+                "Sprint 10 uses deterministic keyword matching.",
+                "No LLM-generated SQL is being used yet.",
+            ],
+            followups=[
+                "Show order count by status",
+                "Show revenue by month",
+                "Show top product categories by revenue",
+            ],
+        )
+
     db = PostgresClient(database_url=settings.database_url)
+    validator = SqlValidator()
+    query_execution_service = QueryExecutionService(
+        db=db,
+        validator=validator,
+    )
 
-    sql = """
-    SELECT
-        current_database() AS database_name,
-        current_user AS user_name,
-        version() AS postgres_version;
-    """
+    execution_result = query_execution_service.execute(
+        sql=matched_intent.sql,
+        max_rows=100,
+    )
 
-    rows = db.execute_select(sql)
+    if not execution_result.success:
+        return AskResponse(
+            answer="I matched your question, but the query could not be executed.",
+            sql=execution_result.validation.normalized_sql,
+            rows=[],
+            assumptions=[
+                f"Matched intent: {matched_intent.intent_name}",
+                f"Validation status: {execution_result.validation.is_valid}",
+            ],
+            followups=[
+                "Check the backend logs.",
+                "Test the SQL through /admin/execute-sql.",
+            ],
+        )
 
     return AskResponse(
-        answer=f"Received your question: {request.question}",
-        sql=sql,
-        rows=rows,
-        chart=None,
+        answer=matched_intent.answer_template,
+        sql=execution_result.validation.normalized_sql,
+        rows=execution_result.rows,
         assumptions=[
-            "This is a Sprint 2 PostgreSQL connection test.",
-            "No LLM-generated SQL is happening yet.",
-            "The SQL is fixed and controlled by the backend.",
+            f"Matched intent: {matched_intent.intent_name}",
+            "SQL is fixed by backend intent routing.",
+            "SQL was validated before execution.",
         ],
         followups=[
-            "Next step will be creating application schemas.",
-            "After that we will load business data.",
+            "Try asking another supported analytics question.",
         ],
     )
 
@@ -77,3 +115,21 @@ def validate_sql_endpoint(
 ) -> SqlValidationResponse:
     validator = SqlValidator()
     return validator.validate(request.sql)
+
+@router.post("/admin/execute-sql", response_model=QueryExecutionResponse)
+def execute_sql_endpoint(
+    request: QueryExecutionRequest,
+    current_user: str = Depends(verify_basic_auth),
+    settings: Settings = Depends(get_settings),
+) -> QueryExecutionResponse:
+    db = PostgresClient(database_url=settings.database_url)
+    validator = SqlValidator()
+    query_execution_service = QueryExecutionService(
+        db=db,
+        validator=validator,
+    )
+
+    return query_execution_service.execute(
+        sql=request.sql,
+        max_rows=request.max_rows,
+    )
